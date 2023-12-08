@@ -253,15 +253,15 @@ static int run_test_nofork(struct testfw_t *fw, struct test_t *t, int argc, char
     struct timeval tv_start, tv_end;
     gettimeofday(&tv_start, NULL);
 
-    // TODO: to be implemented
+    int status = t->func(argc, argv);
 
     gettimeofday(&tv_end, NULL);
     double mtime = (tv_end.tv_sec - tv_start.tv_sec) * 1000.0 + (tv_end.tv_usec - tv_start.tv_usec) / 1000.0; // in ms
-
+    
     if (!fw->silent)
         print_diag_test(stdout, t, wstatus, mtime);
-
-    return EXIT_SUCCESS;
+    
+    return status;
     (void)argc;
     (void)argv;
 }
@@ -277,7 +277,8 @@ static int run_test_forks(struct testfw_t *fw, struct test_t *t, int argc, char 
     struct timeval tv_start, tv_end;
     gettimeofday(&tv_start, NULL);
 
-    // TODO: to be implemented
+    
+    
 
     gettimeofday(&tv_end, NULL);
     double mtime = (tv_end.tv_sec - tv_start.tv_sec) * 1000.0 + (tv_end.tv_usec - tv_start.tv_usec) / 1000.0; // in ms
@@ -296,9 +297,17 @@ static int run_test_forkp(struct testfw_t *fw, struct test_t *t, int argc, char 
 {
     assert(fw);
     assert(t);
+    int wstatus = 0;
+    struct timeval tv_start, tv_end;
+    gettimeofday(&tv_start, NULL);
 
-    // TODO: to be implemented
 
+    gettimeofday(&tv_end, NULL);
+    double mtime = (tv_end.tv_sec - tv_start.tv_sec) * 1000.0 + (tv_end.tv_usec - tv_start.tv_usec) / 1000.0; // in ms
+    if (!fw->silent)
+        print_diag_test(stdout, t, wstatus, mtime);
+    
+    
     return EXIT_SUCCESS;
     (void)argc;
     (void)argv;
@@ -310,7 +319,7 @@ static int run_test(struct testfw_t *fw, struct test_t *t, int argc, char *argv[
 {
     if (!fw->silent)
         printf("******************** RUN TEST \"%s.%s\" ********************\n", t->suite, t->name);
-
+        printf("mode: %d\n", mode);
     switch (mode)
     {
     case TESTFW_NOFORK:
@@ -327,6 +336,8 @@ static int run_test(struct testfw_t *fw, struct test_t *t, int argc, char *argv[
     return EXIT_FAILURE;
 }
 
+#include <signal.h>
+
 int testfw_run_all(struct testfw_t *fw, int argc, char *argv[], enum testfw_mode_t mode)
 {
     assert(fw);
@@ -335,7 +346,64 @@ int testfw_run_all(struct testfw_t *fw, int argc, char *argv[], enum testfw_mode
     {
         struct test_t *t = &fw->tests[i];
         assert(t);
-        nfailures += run_test(fw, t, argc, argv, mode);
+        int status;
+        double mtime = 0.0;
+
+        if (mode == TESTFW_NOFORK)
+        {
+            status = run_test(fw, t, argc, argv, mode);
+        }
+        else
+        {
+            int pid = fork();
+            if (pid == 0)
+            {
+                // Child process
+                alarm(2); // Set timeout to 5 seconds
+                exit(t->func(argc, argv));
+            }
+            else if (pid > 0)
+            {
+                // Parent process
+                struct timeval tv_start, tv_end;
+                gettimeofday(&tv_start, NULL);
+                int wstatus;
+                waitpid(pid, &wstatus, 0);
+                gettimeofday(&tv_end, NULL);
+                mtime = (tv_end.tv_sec - tv_start.tv_sec) * 1000.0 + (tv_end.tv_usec - tv_start.tv_usec) / 1000.0; // in ms
+
+                if (WIFEXITED(wstatus))
+                {
+                    status = WEXITSTATUS(wstatus);
+                }
+                else if (WIFSIGNALED(wstatus))
+                {
+                    if (WTERMSIG(wstatus) == SIGALRM)
+                    {
+                        status = TESTFW_EXIT_TIMEOUT;
+                    }
+                    else
+                    {
+                        status = TESTFW_EXIT_FAILURE;
+                    }
+                }
+                else
+                {
+                    status = TESTFW_EXIT_FAILURE;
+                }
+            }
+            else
+            {
+                // Fork failed
+                status = TESTFW_EXIT_FAILURE;
+            }
+        }
+
+        if (!fw->silent)
+            print_diag_test(stdout, t, status, mtime);
+
+        if (status != TESTFW_EXIT_SUCCESS)
+            nfailures++;
     }
 
     return nfailures;
