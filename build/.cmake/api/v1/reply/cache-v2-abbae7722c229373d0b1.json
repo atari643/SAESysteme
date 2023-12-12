@@ -199,10 +199,10 @@
 				},
 				{
 					"name" : "HELPSTRING",
-					"value" : "No help, variable specified on the command line."
+					"value" : "C compiler"
 				}
 			],
-			"type" : "FILEPATH",
+			"type" : "STRING",
 			"value" : "/usr/bin/gcc"
 		},
 		{
@@ -1255,7 +1255,7 @@
 				}
 			],
 			"type" : "STRING",
-			"value" : "info-209-04x"
+			"value" : "info-212-07x"
 		},
 		{
 			"name" : "SVNCOMMAND",
