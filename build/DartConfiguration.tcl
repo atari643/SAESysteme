@@ -11,7 +11,7 @@ BuildDirectory: /mnt/netta/users/qartigala/Bureau/saesysteme/build
 CostDataFile: 
 
 # Site is something like machine.domain, i.e. pragmatic.crd
-Site: info-212-07x
+Site: info-210-10x
 
 # Build name is osname-revision-compiler, i.e. Linux-2.4.2-2smp-c++
 BuildName: Linux-g++

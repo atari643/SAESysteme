@@ -42,7 +42,7 @@
 			"compileCommandFragments" : 
 			[
 				{
-					"fragment" : "-Wall -std=c99 -g"
+					"fragment" : "-Wall -std=c99 -Wall -Wextra -pedantic -rdynamic -ldl -L. -g"
 				}
 			],
 			"language" : "C",
@@ -69,7 +69,7 @@
 		"commandFragments" : 
 		[
 			{
-				"fragment" : "-Wall -std=c99 -g",
+				"fragment" : "-Wall -std=c99 -Wall -Wextra -pedantic -rdynamic -ldl -L. -g",
 				"role" : "flags"
 			},
 			{

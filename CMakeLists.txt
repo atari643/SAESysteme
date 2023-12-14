@@ -7,8 +7,8 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 include(CTest)
 enable_testing()
 
-set(CMAKE_C_FLAGS "-Wall -std=c99")
-set(CMAKE_LD_FLAGS "-rdynamic")
+set(CMAKE_C_FLAGS "-Wall -std=c99 -Wall -Wextra -pedantic -rdynamic -ldl -L.")
+set(CMAKE_LD_FLAGS "-rdynamic -ldl -L.")
 
 add_library(testfw testfw.c testfw.h)
 target_link_libraries(testfw dl)

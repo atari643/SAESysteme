@@ -253,7 +253,7 @@ static int run_test_nofork(struct testfw_t *fw, struct test_t *t, int argc, char
     struct timeval tv_start, tv_end;
     gettimeofday(&tv_start, NULL);
 
-    t->func(argc, argv);
+    wstatus = t->func(argc, argv);
 
     gettimeofday(&tv_end, NULL);
     double mtime = (tv_end.tv_sec - tv_start.tv_sec) * 1000.0 + (tv_end.tv_usec - tv_start.tv_usec) / 1000.0; // in ms
@@ -265,6 +265,7 @@ static int run_test_nofork(struct testfw_t *fw, struct test_t *t, int argc, char
     (void)argc;
     (void)argv;
 }
+
 
 /* ********** RUN TEST (FORK MODE) ********** */
 
@@ -273,19 +274,36 @@ static int run_test_forks(struct testfw_t *fw, struct test_t *t, int argc, char 
     assert(fw);
     assert(t);
     int wstatus = 0;
-
     struct timeval tv_start, tv_end;
     gettimeofday(&tv_start, NULL);
 
     pid_t pid = fork();
-    if(pid==0){
-        int status = t->func(argc, argv);
-        exit(status);
-    }
-    else{
-        waitpid(pid, &wstatus, 0);
+    if (pid == -1) {
+        perror("fork");
+        return EXIT_FAILURE;
+    } else if (pid == 0) {
+        pid_t pid_test = fork();
+        if (pid_test == 0) {
+            // This is the grandchild process. Run the test.
+            wstatus = t->func(argc, argv);
+            exit(wstatus);
+        } else {
+            // This is the child process. Wait for the test to finish.
+            for (int i = 1; i <= fw->timeout; i++) {
+                if (waitpid(pid_test, &wstatus, WNOHANG) != 0) {
+                    // The test has finished.
+                    exit(WIFEXITED(wstatus) ? WEXITSTATUS(wstatus) : EXIT_FAILURE);
+                }
+                sleep(1);
+            }
+            // The test has timed out.
+            kill(pid_test);
+            exit(TESTFW_EXIT_TIMEOUT);
+        }
     }
 
+
+    waitpid(pid, &wstatus, 0);
 
     gettimeofday(&tv_end, NULL);
     double mtime = (tv_end.tv_sec - tv_start.tv_sec) * 1000.0 + (tv_end.tv_usec - tv_start.tv_usec) / 1000.0; // in ms
@@ -298,18 +316,31 @@ static int run_test_forks(struct testfw_t *fw, struct test_t *t, int argc, char 
     (void)argv;
 }
 
-/* ********** RUN TEST (PARALLEL FORK MODE) ********** */
-
 static int run_test_forkp(struct testfw_t *fw, struct test_t *t, int argc, char *argv[])
 {
     assert(fw);
     assert(t);
 
-    // TODO: to be implemented
+    struct timeval tv_start, tv_end;
+    gettimeofday(&tv_start, NULL);
 
-    return EXIT_SUCCESS;
-    (void)argc;
-    (void)argv;
+    pid_t pid = fork();
+    if (pid == -1) {
+        perror("fork");
+        return EXIT_FAILURE;
+    } else if (pid == 0) {
+        // This is the child process. Run the test.
+        exit(t->func(argc, argv));
+    }
+
+
+    gettimeofday(&tv_end, NULL);
+    double mtime = (tv_end.tv_sec - tv_start.tv_sec) * 1000.0 + (tv_end.tv_usec - tv_start.tv_usec) / 1000.0; // in ms
+
+    if (!fw->silent)
+        print_diag_test(stdout, t, 0, mtime);  // We don't have the exit status yet, so pass 0 for now.
+
+    return pid;  // Return the PID instead of EXIT_SUCCESS or EXIT_FAILURE.
 }
 
 /* ********** RUN TEST ********** */
