@@ -61,5 +61,5 @@ install_manifest.txt
 compile_commands.json
 CTestTestfile.cmake
 _deps
-
+.nfs*
 # End of https://mrkandreev.name/snippets/gitignore-generator/#C,CMake
