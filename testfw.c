@@ -243,20 +243,26 @@ static void print_diag_test(FILE *stream, struct test_t *t, int wstatus, double 
     else
         assert(0); // you should not be here?
 }
-static void write_in_log(struct testfw_t *fw, struct test_t *t, int wstatus, double mtime){
-     if (access(fw->logfile, F_OK) != -1) {
-            printf("Le fichier existe\n");
-            if (access(fw->logfile, W_OK) != -1) {
-                // Vous pouvez écrire dans le fichier
-                FILE *fichier = fopen(fw->logfile, "a");
-                print_diag_test(fichier, t, wstatus, mtime);
-
-            } else {
-                printf("Vous n'avez pas les droits d'écriture\n");
-            }
-        } else {
-            printf("Le fichier n'existe pas\n");
+static void write_in_log(struct testfw_t *fw, struct test_t *t, int wstatus, double mtime)
+{
+    if (access(fw->logfile, F_OK) != -1)
+    {
+        printf("Le fichier existe\n");
+        if (access(fw->logfile, W_OK) != -1)
+        {
+            // Vous pouvez écrire dans le fichier
+            FILE *fichier = fopen(fw->logfile, "a");
+            print_diag_test(fichier, t, wstatus, mtime);
         }
+        else
+        {
+            printf("Vous n'avez pas les droits d'écriture\n");
+        }
+    }
+    else
+    {
+        printf("Le fichier n'existe pas\n");
+    }
 }
 
 /* ********** RUN TEST (NOFORK MODE) ********** */
@@ -270,15 +276,18 @@ static int run_test_nofork(struct testfw_t *fw, struct test_t *t, int argc, char
     struct timeval tv_start, tv_end;
     gettimeofday(&tv_start, NULL);
 
-    wstatus = t->func(argc, argv);
+    int status = t->func(argc, argv);
+    wstatus = (status << 8) & 0xFF00;
 
     gettimeofday(&tv_end, NULL);
     double mtime = (tv_end.tv_sec - tv_start.tv_sec) * 1000.0 + (tv_end.tv_usec - tv_start.tv_usec) / 1000.0; // in ms
 
     if (!fw->silent)
         print_diag_test(stdout, t, wstatus, mtime);
-    else{
-        if(fw->logfile!=NULL){
+    else
+    {
+        if (fw->logfile != NULL)
+        {
             write_in_log(fw, t, wstatus, mtime);
         }
     }
@@ -297,7 +306,7 @@ static int run_test_forks(struct testfw_t *fw, struct test_t *t, int argc, char 
     int wstatus = 0;
     struct timeval tv_start, tv_end;
     gettimeofday(&tv_start, NULL);
-    
+
     pid_t pid = fork();
     if (pid == 0)
     {
@@ -306,46 +315,55 @@ static int run_test_forks(struct testfw_t *fw, struct test_t *t, int argc, char 
         {
             exit(t->func(argc, argv));
         }
-        if(fw->timeout==0){
+        if (fw->timeout == 0)
+        {
             waitpid(pid_test, &wstatus, 0);
-        }else{
-        pid_t pid_timeout = fork();
-        if (pid_timeout == 0)
-        {
-            sleep(fw->timeout);
-            kill(pid_test, SIGUSR1);
-            exit(TESTFW_EXIT_TIMEOUT);
-        }
-        waitpid(pid_test, &wstatus, 0);
-        if (WTERMSIG(wstatus) == SIGUSR1)//SIGUSR1 est le signal que renvoie Crlr+C qu'on effectue généralement pour arrêter un processus trop long
-        {
-            exit(TESTFW_EXIT_TIMEOUT);
-        
-        }
-        else if (WIFSIGNALED(wstatus))
-        {
-           kill(getpid(), WTERMSIG(wstatus));//On simule le kill qui a fait que le processus fils ne s'est pas terminer
         }
         else
         {
-            exit(WEXITSTATUS(wstatus));
-        }
+            pid_t pid_timeout = fork();
+            if (pid_timeout == 0)
+            {
+                sleep(fw->timeout);
+                kill(pid_test, SIGUSR1);
+                exit(TESTFW_EXIT_TIMEOUT);
+            }
+            waitpid(pid_test, &wstatus, 0);
+            if (WTERMSIG(wstatus) == SIGUSR1) // SIGUSR1 est le signal que renvoie Crlr+C qu'on effectue généralement pour arrêter un processus trop long
+            {
+                kill(pid_timeout, SIGUSR1);
+                exit(TESTFW_EXIT_TIMEOUT);
+            }
+            else if (WIFSIGNALED(wstatus))
+            {
+                kill(pid_timeout, SIGUSR1);
+                kill(getpid(), WTERMSIG(wstatus)); // On simule le kill qui a fait que le processus fils ne s'est pas terminer
+            }
+            else
+            {
+                kill(pid_timeout, SIGUSR1);
+                exit(WEXITSTATUS(wstatus));
+            }
         }
     }
     waitpid(pid, &wstatus, 0);
     gettimeofday(&tv_end, NULL);
     double mtime = (tv_end.tv_sec - tv_start.tv_sec) * 1000.0 + (tv_end.tv_usec - tv_start.tv_usec) / 1000.0; // in ms
 
-    if (!fw->silent){
+    if (!fw->silent)
+    {
         print_diag_test(stdout, t, wstatus, mtime);
-    }else{
-        if(fw->logfile!=NULL){
+    }
+    else
+    {
+        if (fw->logfile != NULL)
+        {
             write_in_log(fw, t, wstatus, mtime);
         }
     }
-    
 
-    if(wstatus!=0){
+    if (wstatus != 0)
+    {
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
@@ -359,11 +377,31 @@ static int run_test_forkp(struct testfw_t *fw, struct test_t *t, int argc, char 
     assert(fw != NULL);
     assert(t != NULL);
 
-    
+    pid_t pid = fork();
+    int wstatus;
+
+    if (pid == 0)
+    {
+        pid_t pid_testp = fork();
+        if (pid_testp == 0)
+        {
+            exit(run_test_forks(fw, t, argc, argv));
+        }
+        else
+        {
+            waitpid(pid_testp, &wstatus, 0);
+            exit(wstatus);
+        }
+    }
+
+    if (wstatus != 0)
+    {
+        return EXIT_FAILURE;
+    }
     return EXIT_SUCCESS;
+    (void)argc;
+    (void)argv;
 }
-
-
 /* ********** RUN TEST ********** */
 
 static int run_test(struct testfw_t *fw, struct test_t *t, int argc, char *argv[], enum testfw_mode_t mode)
@@ -396,8 +434,6 @@ int testfw_run_all(struct testfw_t *fw, int argc, char *argv[], enum testfw_mode
         struct test_t *t = &fw->tests[i];
         assert(t);
         nfailures += run_test(fw, t, argc, argv, mode);
-        
     }
-
     return nfailures;
 }
